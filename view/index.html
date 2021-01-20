@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <title>Pixels</title>
+  </head>
+
+  <body>
+    <style>
+      body {
+        background-color: black;
+      }
+      /*html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+      }*/
+      canvas {
+        margin-left: auto;
+        margin-right: auto;
+      }
+    </style>
+
+    <div class="toCenter">
+      <canvas id="canvas" width="500" height="250"></canvas>
+    </div>
+
+    <script>
+      function setPixel(imgData, x, y, r, g, b, a) {
+        imgData.data[4 * (y * imgData.width + x)] = r;
+        imgData.data[4 * (y * imgData.width + x) + 1] = g;
+        imgData.data[4 * (y * imgData.width + x) + 2] = b;
+        imgData.data[4 * (y * imgData.width + x) + 3] = a;
+      }
+
+      function addPixel(imgData, x, y, r, g, b, a) {
+        imgData.data[4 * (y * imgData.width + x)] += r;
+        imgData.data[4 * (y * imgData.width + x) + 1] = g;
+        imgData.data[4 * (y * imgData.width + x) + 2] = b;
+        imgData.data[4 * (y * imgData.width + x) + 3] = a;
+      }
+
+      function sendPoint(point) {
+          fetch("/point/", {
+              method: "POST", 
+              body: JSON.stringify(point),
+              headers: new Headers({'content-type': 'application/json'})
+        });
+      }
+
+      function pixelDistance(x1, y1, x2, y2) {
+        // a²+b²=c²
+        // d for delta
+        let dx = Math.abs(x1 - x2);
+        let dy = Math.abs(y1 - y2);
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      function buggyGetCookie(key) {
+        let c = document.cookie;
+        c = c.substring(c.indexOf(`${key}`)+key.length+1)
+        let index = c.indexOf(";");
+        return c.substring(0, index == -1 ? c.length : index);
+      }
+
+      function randomUserName() {
+          let str = "user-";
+          for(let i=0; i<12; i++) {
+              str += String.fromCharCode((Math.floor(Math.random()*26)) + 97);
+          }
+          return str;
+      }
+
+      let points = [ // test data
+        { x: 50, y: 60 },
+        { x: 120, y: 100 },
+      ];
+
+      let myPoint = null;
+
+      const canvas = document.querySelector("#canvas");
+
+      const draw = async () => {
+
+        points = await (await fetch("/point/")).json();
+        const ctx = canvas.getContext("2d");
+        let imageData;
+        const { width, height } = canvas;
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(10, 10, 10, 10);
+        imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            //setPixel(imgData, x,y,0,0,0,0); // clear pixel for next add
+            for (point of points) {
+              let dist = pixelDistance(x, y, point.x, point.y);
+              dist = (1 / dist) * 255 * 20;
+              if (dist >= 255) dist = 255;
+
+              addPixel(imgData, x, y, dist * (1 / points.length), 0, 0, 255);
+            }
+          }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+        console.log("done");
+      };
+
+      document.onreadystatechange = () => {
+        if (document.readyState != "complete") return;
+        draw();
+      };
+
+      canvas.addEventListener("click", (e) => {
+        let user = buggyGetCookie("user");
+        if(!user) document.cookie = "user=" + randomUserName(); // test data
+        myPoint = { x: e.x, y: e.y, user: user};
+        points = points.filter(e => e.user !== user); // remove old point
+        points.push(myPoint);
+        draw();
+        sendPoint(myPoint);
+      });
+    </script>
+  </body>
+</html>
